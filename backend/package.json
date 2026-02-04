@@ -1,0 +1,16 @@
+{
+  "name": "counter-assessment-backend",
+  "version": "1.0.0",
+  "description": "Node.js backend API for counter dApp assessment",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-core-validator": "^1.0.0"
+  }
+}
