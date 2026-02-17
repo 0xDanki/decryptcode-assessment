@@ -3,7 +3,7 @@
  */
 require("dotenv").config();
 
-const PORT = parseInt(process.env.PORT || "4010", 10);
+const PORT = parseInt(process.env.PORT || "4000", 10);
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || null;
 const CHAIN_ID = parseInt(process.env.CHAIN_ID || "31337", 10);
 const NODE_ENV = process.env.NODE_ENV || "development";

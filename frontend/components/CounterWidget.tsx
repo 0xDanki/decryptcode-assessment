@@ -6,12 +6,13 @@ import { COUNTER_ABI } from "@/lib/contract";
 import { useAppConfig } from "@/lib/useAppConfig";
 
 export function CounterWidget() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const { connect, connectors, isPending: isConnectPending, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
   const configState = useAppConfig();
 
   const contractAddress = configState.status === "ready" ? configState.config?.contractAddress ?? null : null;
+  const expectedChainId = configState.status === "ready" ? configState.config?.chainId ?? null : null;
 
   const { data: count, refetch: refetchCount } = useReadContract({
     address: contractAddress ?? undefined,
@@ -83,6 +84,22 @@ export function CounterWidget() {
         {connectError && (
           <p className="text-sm text-red-600">{connectError.message}</p>
         )}
+      </div>
+    );
+  }
+
+  if (expectedChainId !== null && chain?.id !== expectedChainId) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
+        <p className="font-medium">Wrong network</p>
+        <p className="mt-2 text-sm">
+          Please switch to chain ID {expectedChainId} in your wallet.
+          {expectedChainId === 31337 && " (Hardhat local network)"}
+          {expectedChainId === 84532 && " (Base Sepolia testnet)"}
+        </p>
+        <p className="mt-2 text-sm text-gray-600">
+          Currently connected to chain ID: {chain?.id ?? "unknown"}
+        </p>
       </div>
     );
   }
