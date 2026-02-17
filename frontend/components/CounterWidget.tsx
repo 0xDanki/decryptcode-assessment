@@ -46,14 +46,19 @@ export function CounterWidget() {
     data: decrementTxHash,
   } = useWriteContract();
 
-  useWaitForTransactionReceipt({
+  const { isSuccess: incrementSuccess } = useWaitForTransactionReceipt({
     hash: incrementTxHash,
-    onSuccess: () => refetchCount(),
   });
-  useWaitForTransactionReceipt({
+  const { isSuccess: decrementSuccess } = useWaitForTransactionReceipt({
     hash: decrementTxHash,
-    onSuccess: () => refetchCount(),
   });
+
+  // Refetch count when transactions succeed
+  useEffect(() => {
+    if (incrementSuccess || decrementSuccess) {
+      refetchCount();
+    }
+  }, [incrementSuccess, decrementSuccess, refetchCount]);
 
   // Listen to contract events for real-time updates (when available)
   useWatchContractEvent({
