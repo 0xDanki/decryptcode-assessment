@@ -21,9 +21,7 @@ module.exports = {
     },
   },
   etherscan: {
-    apiKey: {
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-    },
+    apiKey: process.env.BASESCAN_API_KEY || "",
     customChains: [
       {
         network: "baseSepolia",
@@ -34,5 +32,8 @@ module.exports = {
         },
       },
     ],
+  },
+  sourcify: {
+    enabled: false,
   },
 };
