@@ -21,11 +21,22 @@ npm install
 npx hardhat compile
 ```
 
-## Test (optional but recommended)
+## Test
+
+Comprehensive tests are included in `test/Counter.test.js`:
 
 ```bash
 npx hardhat test
 ```
+
+Tests cover:
+- Deployment (initial count is 0)
+- Increment operations (single and multiple)
+- Decrement operations (single and multiple)
+- Underflow protection (prevents decrement below 0)
+- Event emissions (CounterIncremented, CounterDecremented)
+- Access control (any address can call functions)
+- Complex scenarios (sequences of operations)
 
 ## Deploy locally
 

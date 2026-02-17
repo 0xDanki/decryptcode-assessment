@@ -1,5 +1,5 @@
 /**
- * Counter contract ABI (minimal – only the functions used by the dApp).
+ * Counter contract ABI (minimal – only the functions and events used by the dApp).
  * Full ABI can be generated with: npx hardhat compile && cat artifacts/contracts/Counter.sol/Counter.json
  */
 export const COUNTER_ABI = [
@@ -23,6 +23,32 @@ export const COUNTER_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newCount",
+        type: "uint256",
+      },
+    ],
+    name: "CounterIncremented",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newCount",
+        type: "uint256",
+      },
+    ],
+    name: "CounterDecremented",
+    type: "event",
   },
 ] as const;
 

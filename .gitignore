@@ -14,6 +14,9 @@ cache/
 # IDE
 .idea/
 .vscode/
+.cursor/
+.cursorrules
+.aider*
 *.swp
 *.swo
 
