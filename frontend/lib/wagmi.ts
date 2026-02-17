@@ -1,7 +1,8 @@
 "use client";
 
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { createConfig, http } from "wagmi";
 import { hardhat, baseSepolia } from "wagmi/chains";
+import { injected } from "wagmi/connectors";
 
 const chainId = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "31337", 10);
 
@@ -17,9 +18,22 @@ const localhost = {
   },
 };
 
-export const config = getDefaultConfig({
-  appName: "Counter dApp",
-  projectId: "YOUR_PROJECT_ID", // Get from WalletConnect Cloud (optional for this demo)
+// Use only injected connectors (browser extensions) - no WalletConnect
+export const config = createConfig({
   chains: [localhost, baseSepolia],
+  connectors: [
+    injected({
+      target: "metaMask",
+      shimDisconnect: true,
+    }),
+    injected({
+      target: "coinbaseWallet",
+      shimDisconnect: true,
+    }),
+  ],
+  transports: {
+    [localhost.id]: http(),
+    [baseSepolia.id]: http(),
+  },
   ssr: true,
 });
