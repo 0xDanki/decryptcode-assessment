@@ -1,8 +1,7 @@
 "use client";
 
-import { createConfig, http } from "wagmi";
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { hardhat, baseSepolia } from "wagmi/chains";
-import { injected } from "wagmi/connectors";
 
 const chainId = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "31337", 10);
 
@@ -14,16 +13,13 @@ const localhost = {
   nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
   rpcUrls: {
     default: { http: ["http://127.0.0.1:8545"] },
+    public: { http: ["http://127.0.0.1:8545"] },
   },
 };
 
-export const config = createConfig({
+export const config = getDefaultConfig({
+  appName: "Counter dApp",
+  projectId: "YOUR_PROJECT_ID", // Get from WalletConnect Cloud (optional for this demo)
   chains: [localhost, baseSepolia],
-  connectors: [
-    injected({ target: "metaMask" }),
-  ],
-  transports: {
-    [localhost.id]: http(),
-    [baseSepolia.id]: http(),
-  },
+  ssr: true,
 });
