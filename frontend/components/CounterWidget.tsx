@@ -1,14 +1,27 @@
 "use client";
 
-import { useAccount } from "wagmi";
+import { useState, useEffect } from "react";
+import { useAccount, usePublicClient, useWatchContractEvent } from "wagmi";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { COUNTER_ABI } from "@/lib/contract";
 import { useAppConfig } from "@/lib/useAppConfig";
 
+type Activity = {
+  type: "increment" | "decrement";
+  address: string;
+  newCount: string;
+  timestamp: number;
+  txHash: string;
+};
+
 export function CounterWidget() {
   const { address, isConnected, chain } = useAccount();
   const configState = useAppConfig();
+  const publicClient = usePublicClient();
+
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
+  const [showWarning, setShowWarning] = useState(false);
 
   const contractAddress = configState.status === "ready" ? configState.config?.contractAddress ?? null : null;
   const expectedChainId = configState.status === "ready" ? configState.config?.chainId ?? null : null;
@@ -38,6 +51,113 @@ export function CounterWidget() {
     hash: decrementTxHash,
     onSuccess: () => refetchCount(),
   });
+
+  // Listen to contract events for real-time updates
+  useWatchContractEvent({
+    address: contractAddress ?? undefined,
+    abi: COUNTER_ABI,
+    eventName: "CounterIncremented",
+    onLogs: () => {
+      refetchCount();
+    },
+  });
+
+  useWatchContractEvent({
+    address: contractAddress ?? undefined,
+    abi: COUNTER_ABI,
+    eventName: "CounterDecremented",
+    onLogs: () => {
+      refetchCount();
+    },
+  });
+
+  // Fetch recent activity from contract events
+  useEffect(() => {
+    if (!contractAddress || !publicClient) return;
+
+    const fetchRecentActivity = async () => {
+      try {
+        const currentBlock = await publicClient.getBlockNumber();
+        const fromBlock = currentBlock - 1000n; // Last ~1000 blocks
+
+        const [incrementLogs, decrementLogs] = await Promise.all([
+          publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              type: "event",
+              name: "CounterIncremented",
+              inputs: [{ type: "uint256", name: "newCount", indexed: false }],
+            },
+            fromBlock,
+            toBlock: "latest",
+          }),
+          publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              type: "event",
+              name: "CounterDecremented",
+              inputs: [{ type: "uint256", name: "newCount", indexed: false }],
+            },
+            fromBlock,
+            toBlock: "latest",
+          }),
+        ]);
+
+        const allLogs = [
+          ...incrementLogs.map((log) => ({
+            type: "increment" as const,
+            address: log.args.newCount ? "Unknown" : "Unknown", // Events don't include caller address in current contract
+            newCount: log.args.newCount?.toString() ?? "0",
+            timestamp: 0,
+            txHash: log.transactionHash ?? "",
+            blockNumber: log.blockNumber,
+          })),
+          ...decrementLogs.map((log) => ({
+            type: "decrement" as const,
+            address: log.args.newCount ? "Unknown" : "Unknown",
+            newCount: log.args.newCount?.toString() ?? "0",
+            timestamp: 0,
+            txHash: log.transactionHash ?? "",
+            blockNumber: log.blockNumber,
+          })),
+        ];
+
+        // Sort by block number (most recent first) and take last 10
+        allLogs.sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber));
+        
+        // Fetch transaction details to get actual caller addresses
+        const enrichedLogs = await Promise.all(
+          allLogs.slice(0, 10).map(async (log) => {
+            try {
+              const tx = await publicClient.getTransaction({ hash: log.txHash as `0x${string}` });
+              const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
+              return {
+                ...log,
+                address: tx.from,
+                timestamp: Number(block.timestamp) * 1000,
+              };
+            } catch {
+              return log;
+            }
+          })
+        );
+
+        setRecentActivity(enrichedLogs);
+      } catch (error) {
+        console.error("Error fetching activity:", error);
+      }
+    };
+
+    fetchRecentActivity();
+  }, [contractAddress, publicClient, count]);
+
+  const handleDecrement = () => {
+    if (count === 0n) {
+      setShowWarning(true);
+    } else {
+      writeDecrement({ address: contractAddress!, abi: COUNTER_ABI, functionName: "decrement" });
+    }
+  };
 
   const isTxPending = isIncrementPending || isDecrementPending;
   const wrongNetwork = expectedChainId !== null && chain?.id !== expectedChainId;
@@ -117,9 +237,21 @@ export function CounterWidget() {
 
             {canInteract && (
               <div className="space-y-4">
+                {/* Warning for underflow */}
+                {count === 0n && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                    <p className="text-sm font-medium text-amber-900">
+                      ⚠️ Counter is at zero
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Attempting to decrement will fail and waste gas. The transaction will revert with "Counter: underflow".
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <button
-                    onClick={() => writeDecrement({ address: contractAddress!, abi: COUNTER_ABI, functionName: "decrement" })}
+                    onClick={handleDecrement}
                     disabled={isTxPending}
                     className="group relative overflow-hidden rounded-lg bg-red-600 px-6 py-4 font-semibold text-white shadow-md transition-all hover:bg-red-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -170,6 +302,88 @@ export function CounterWidget() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      {contractAddress && configState.status === "ready" && recentActivity.length > 0 && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white shadow-lg">
+          <div className="border-b border-gray-200 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+            <p className="text-xs text-gray-500">Last 10 transactions</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {recentActivity.map((activity, i) => (
+              <div key={i} className="flex items-center justify-between px-6 py-3 hover:bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-full px-2 py-1 text-xs font-medium ${
+                    activity.type === "increment" 
+                      ? "bg-green-100 text-green-700" 
+                      : "bg-red-100 text-red-700"
+                  }`}>
+                    {activity.type === "increment" ? "+1" : "-1"}
+                  </div>
+                  <div>
+                    <p className="font-mono text-sm text-gray-900">
+                      {activity.address.slice(0, 6)}...{activity.address.slice(-4)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {activity.timestamp > 0 
+                        ? new Date(activity.timestamp).toLocaleTimeString()
+                        : "Recent"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">→ {activity.newCount}</p>
+                  {expectedChainId === 84532 && activity.txHash && (
+                    <a
+                      href={`https://sepolia.basescan.org/tx/${activity.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      View tx
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Warning Modal */}
+      {showWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 text-center text-4xl">⚠️</div>
+            <h3 className="text-center text-xl font-bold text-gray-900">
+              Cannot Decrement Below Zero
+            </h3>
+            <p className="mt-3 text-center text-sm text-gray-600">
+              The counter is currently at <span className="font-bold">0</span>. 
+              Attempting to decrement will cause the transaction to <span className="font-semibold text-red-600">revert</span>, 
+              wasting your gas fees.
+            </p>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => setShowWarning(false)}
+                className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+              >
+                Got it, thanks!
+              </button>
+              <button
+                onClick={() => {
+                  setShowWarning(false);
+                  writeDecrement({ address: contractAddress!, abi: COUNTER_ABI, functionName: "decrement" });
+                }}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Try anyway (not recommended)
+              </button>
+            </div>
           </div>
         </div>
       )}
