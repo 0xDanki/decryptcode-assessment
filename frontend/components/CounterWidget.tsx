@@ -30,6 +30,9 @@ export function CounterWidget() {
     address: contractAddress ?? undefined,
     abi: COUNTER_ABI,
     functionName: "getCount",
+    query: {
+      refetchInterval: 3000, // Poll every 3 seconds
+    },
   });
 
   const {
@@ -52,12 +55,14 @@ export function CounterWidget() {
     onSuccess: () => refetchCount(),
   });
 
-  // Listen to contract events for real-time updates
+  // Listen to contract events for real-time updates (when available)
   useWatchContractEvent({
     address: contractAddress ?? undefined,
     abi: COUNTER_ABI,
     eventName: "CounterIncremented",
-    onLogs: () => {
+    enabled: !!contractAddress,
+    onLogs: (logs) => {
+      console.log("CounterIncremented event detected", logs);
       refetchCount();
     },
   });
@@ -66,7 +71,9 @@ export function CounterWidget() {
     address: contractAddress ?? undefined,
     abi: COUNTER_ABI,
     eventName: "CounterDecremented",
-    onLogs: () => {
+    enabled: !!contractAddress,
+    onLogs: (logs) => {
+      console.log("CounterDecremented event detected", logs);
       refetchCount();
     },
   });
